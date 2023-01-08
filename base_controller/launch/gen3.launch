@@ -5,7 +5,7 @@
     <arg name="start_gazebo" default="true"/>
     <arg name="gazebo_gui"   default ="true"/>
     <arg name="start_rviz" 	default="true"/>
-    <arg name="world_name"   default="$(find kortex_description)/worlds/a7.world"/>
+    <arg name="world_name"   default="$(find base_controller)/worlds/sample.world"/>
 
 
     <!-- Initial position in Gazebo -->
@@ -37,8 +37,6 @@
 
 
     <group ns="$(arg robot_name)">
-
-	<param name="urdf_file_name" value="$(find kortex_description)/urdf/gen3_with_gripper.urdf"/>
 
         <!-- Load the description for the robot -->
         <param name="robot_description"
@@ -78,7 +76,7 @@
 
         <node name="$(arg prefix)$(arg arm)_controller_spawner"
         		pkg="controller_manager" type="spawner" respawn="false" output="screen"
-        		args="$(arg prefix)joint_state_controller joint_group_effort_controller finger_group_action_controller"/>
+        		args="$(arg prefix)joint_state_controller joint_group_position_controller finger_group_action_controller"/>
 
     </group>
 
