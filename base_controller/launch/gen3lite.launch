@@ -51,9 +51,9 @@
                 -J $(arg prefix)joint_5 3.14
                 -J $(arg prefix)joint_6 1.00
 
-                -J $(arg prefix)right_finger_bottom_joint 0.0
+                -J $(arg prefix)right_finger_bottom_joint 0.8
                 -J $(arg prefix)right_finger_tip_joint 0.3
-                -J $(arg prefix)left_finger_bottom_joint 0.3
+                -J $(arg prefix)left_finger_bottom_joint -0.8
                 -J $(arg prefix)left_finger_tip_joint  0.3" />
 
 	     <!-- Start robot state publisher -->
@@ -70,7 +70,7 @@
 
         <node name="$(arg prefix)$(arg arm)_controller_spawner"
         		pkg="controller_manager" type="spawner" respawn="false" output="screen"
-        		args="$(arg prefix)joint_state_controller joint_group_position_controller"/>
+        		args="$(arg prefix)joint_state_controller $(arg prefix)joint_group_position_controller $(arg prefix)$(arg gripper)_gripper_controller"/>
 
     </group>
 
