@@ -27,7 +27,7 @@ from kortex_api.autogen.messages import DeviceConfig_pb2, Session_pb2, Base_pb2
 def example_api_creation(args):
     '''
     This function creates all required objects and connections to use the arm's services.
-    It is easier to use the DeviceConnection utility class to create the router and then 
+    It is easier to use the DeviceConnection utility class to create the router and then
     create the services you need (as done in the other examples).
     However, if you want to create all objects yourself, this function tells you how to do it.
     '''
@@ -75,6 +75,6 @@ def main():
 
     # Example core
     example_api_creation(args)
-    
+
 if __name__ == "__main__":
     main()

@@ -41,13 +41,13 @@ def check_for_end_or_abort(e):
         or notification.action_event == Base_pb2.ACTION_ABORT:
             e.set()
     return check
- 
+
 def example_move_to_home_position(base):
     # Make sure the arm is in Single Level Servoing mode
     base_servo_mode = Base_pb2.ServoingModeInformation()
     base_servo_mode.servoing_mode = Base_pb2.SINGLE_LEVEL_SERVOING
     base.SetServoingMode(base_servo_mode)
-    
+
     # Move arm to ready position
     print("Moving the arm to a safe position")
     action_type = Base_pb2.RequestedActionType()
@@ -78,17 +78,17 @@ def example_move_to_home_position(base):
         print("Timeout on action notification wait")
     return finished
 def populateCartesianCoordinate(waypointInformation):
-    
-    waypoint = Base_pb2.CartesianWaypoint()  
+
+    waypoint = Base_pb2.CartesianWaypoint()
     waypoint.pose.x = waypointInformation[0]
     waypoint.pose.y = waypointInformation[1]
     waypoint.pose.z = waypointInformation[2]
     waypoint.blending_radius = waypointInformation[3]
     waypoint.pose.theta_x = waypointInformation[4]
     waypoint.pose.theta_y = waypointInformation[5]
-    waypoint.pose.theta_z = waypointInformation[6] 
+    waypoint.pose.theta_z = waypointInformation[6]
     waypoint.reference_frame = Base_pb2.CARTESIAN_REFERENCE_FRAME_BASE
-    
+
     return waypoint
 
 def example_trajectory(base, base_cyclic):
@@ -98,7 +98,7 @@ def example_trajectory(base, base_cyclic):
     base.SetServoingMode(base_servo_mode)
     product = base.GetProductConfiguration()
     waypointsDefinition = tuple(tuple())
-    if(   product.model == Base_pb2.ProductConfiguration__pb2.MODEL_ID_L53 
+    if(   product.model == Base_pb2.ProductConfiguration__pb2.MODEL_ID_L53
        or product.model == Base_pb2.ProductConfiguration__pb2.MODEL_ID_L31):
         if(product.model == Base_pb2.ProductConfiguration__pb2.MODEL_ID_L31):
             kTheta_x = 90.6
@@ -122,18 +122,18 @@ def example_trajectory(base, base_cyclic):
         print("Product is not compatible to run this example please contact support with KIN number bellow")
         print("Product KIN is : " + product.kin())
 
-    
+
     waypoints = Base_pb2.WaypointList()
-    
+
     waypoints.duration = 0.0
     waypoints.use_optimal_blending = False
-    
+
     index = 0
     for waypointDefinition in waypointsDefinition:
         waypoint = waypoints.waypoints.add()
-        waypoint.name = "waypoint_" + str(index)   
+        waypoint.name = "waypoint_" + str(index)
         waypoint.cartesian_waypoint.CopyFrom(populateCartesianCoordinate(waypointDefinition))
-        index = index + 1 
+        index = index + 1
 
     # Verify validity of waypoints
     result = base.ValidateWaypointList(waypoints);
@@ -143,7 +143,7 @@ def example_trajectory(base, base_cyclic):
                                                                 Base_pb2.NotificationOptions())
 
         print("Moving cartesian trajectory...")
-        
+
         base.ExecuteWaypointTrajectory(waypoints)
 
         print("Waiting for trajectory to finish ...")
@@ -173,35 +173,35 @@ def example_trajectory(base, base_cyclic):
             print("Timeout on action notification wait for non-optimized trajectory")
 
         return finished
-        
+
     else:
-        print("Error found in trajectory") 
-        result.trajectory_error_report.PrintDebugString();  
+        print("Error found in trajectory")
+        result.trajectory_error_report.PrintDebugString();
 
 
 def main():
-    
+
     # Import the utilities helper module
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     import utilities
 
     # Parse arguments
     args = utilities.parseConnectionArguments()
-    
+
     # Create connection to the device and get the router
     with utilities.DeviceConnection.createTcpConnection(args) as router:
 
         # Create required services
         base = BaseClient(router)
         base_cyclic = BaseCyclicClient(router)
-        
+
 
         # Example core
         success = True
 
         success &= example_move_to_home_position(base)
         success &= example_trajectory(base, base_cyclic)
-       
+
         return 0 if success else 1
 
 if __name__ == "__main__":

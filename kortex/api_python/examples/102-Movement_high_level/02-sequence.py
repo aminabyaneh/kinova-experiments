@@ -71,12 +71,12 @@ def check_for_end_or_abort(e):
 #
 
 def create_angular_action(actuator_count):
-    
+
     print("Creating angular action")
     action = Base_pb2.Action()
     action.name = "Example angular action"
     action.application_data = ""
-    
+
     for joint_id in range(actuator_count):
         joint_angle = action.reach_joint_angles.joint_angles.joint_angles.add()
         joint_angle.value = 0.0
@@ -84,7 +84,7 @@ def create_angular_action(actuator_count):
     return action
 
 def create_cartesian_action(base_cyclic):
-    
+
     print("Creating Cartesian action")
     action = Base_pb2.Action()
     action.name = "Example Cartesian action"
@@ -112,7 +112,7 @@ def example_move_to_home_position(base):
     base_servo_mode = Base_pb2.ServoingModeInformation()
     base_servo_mode.servoing_mode = Base_pb2.SINGLE_LEVEL_SERVOING
     base.SetServoingMode(base_servo_mode)
-    
+
     # Move arm to ready position
     print("Moving the arm to a safe position")
     action_type = Base_pb2.RequestedActionType()
@@ -158,7 +158,7 @@ def example_create_sequence(base, base_cyclic):
     task_1 = sequence.tasks.add()
     task_1.group_identifier = 0
     task_1.action.CopyFrom(cartesian_action)
-    
+
     task_2 = sequence.tasks.add()
     task_2.group_identifier = 1 # sequence elements with same group_id are played at the same time
     task_2.action.CopyFrom(angular_action)
@@ -188,7 +188,7 @@ def main():
 
     # Parse arguments
     args = utilities.parseConnectionArguments()
-    
+
     # Create connection to the device and get the router
     with utilities.DeviceConnection.createTcpConnection(args) as router:
 
@@ -200,7 +200,7 @@ def main():
         success = True
         success &= example_move_to_home_position(base)
         success &= example_create_sequence(base, base_cyclic)
-        
+
         # You can also refer to the 110-Waypoints examples for an alternate way to execute
         # a trajectory defined by a series of waypoints in joint space or in Cartesian space
 

@@ -40,13 +40,13 @@ def check_for_end_or_abort(e):
         or notification.action_event == Base_pb2.ACTION_ABORT:
             e.set()
     return check
- 
+
 def example_move_to_home_position(base):
     # Make sure the arm is in Single Level Servoing mode
     base_servo_mode = Base_pb2.ServoingModeInformation()
     base_servo_mode.servoing_mode = Base_pb2.SINGLE_LEVEL_SERVOING
     base.SetServoingMode(base_servo_mode)
-    
+
     # Move arm to ready position
     print("Moving the arm to a safe position")
     action_type = Base_pb2.RequestedActionType()
@@ -78,7 +78,7 @@ def example_move_to_home_position(base):
     return finished
 
 def example_angular_action_movement(base):
-    
+
     print("Starting angular action movement ...")
     action = Base_pb2.Action()
     action.name = "Example angular action movement"
@@ -97,7 +97,7 @@ def example_angular_action_movement(base):
         check_for_end_or_abort(e),
         Base_pb2.NotificationOptions()
     )
-    
+
     print("Executing action")
     base.ExecuteAction(action)
 
@@ -113,7 +113,7 @@ def example_angular_action_movement(base):
 
 
 def example_cartesian_action_movement(base, base_cyclic):
-    
+
     print("Starting Cartesian action movement ...")
     action = Base_pb2.Action()
     action.name = "Example Cartesian action movement"
@@ -149,14 +149,14 @@ def example_cartesian_action_movement(base, base_cyclic):
     return finished
 
 def main():
-    
+
     # Import the utilities helper module
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     import utilities
 
     # Parse arguments
     args = utilities.parseConnectionArguments()
-    
+
     # Create connection to the device and get the router
     with utilities.DeviceConnection.createTcpConnection(args) as router:
 
@@ -168,7 +168,7 @@ def main():
         success = True
 
         success &= example_move_to_home_position(base)
-        success &= example_cartesian_action_movement(base, base_cyclic)
+        # success &= example_cartesian_action_movement(base, base_cyclic)
         success &= example_angular_action_movement(base)
 
         # You can also refer to the 110-Waypoints examples if you want to execute

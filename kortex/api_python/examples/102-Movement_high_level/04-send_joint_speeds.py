@@ -50,7 +50,7 @@ def example_move_to_start_position(base):
     base_servo_mode = Base_pb2.ServoingModeInformation()
     base_servo_mode.servoing_mode = Base_pb2.SINGLE_LEVEL_SERVOING
     base.SetServoingMode(base_servo_mode)
-    
+
     # Move arm to ready position
     constrained_joint_angles = Base_pb2.ConstrainedJointAngles()
 
@@ -93,7 +93,7 @@ def example_send_joint_speeds(base):
         i = 0
         for speed in speeds:
             joint_speed = joint_speeds.joint_speeds.add()
-            joint_speed.joint_identifier = i 
+            joint_speed.joint_identifier = i
             joint_speed.value = speed
             joint_speed.duration = 0
             i = i + 1
@@ -112,11 +112,11 @@ def example_send_joint_speeds(base):
             i = 0
             for speed in speeds:
                 joint_speed = joint_speeds.joint_speeds.add()
-                joint_speed.joint_identifier = i 
+                joint_speed.joint_identifier = i
                 joint_speed.value = speed
                 joint_speed.duration = 0
                 i = i + 1
-            
+
             base.SendJointSpeedsCommand(joint_speeds)
             time.sleep(2.5)
 
@@ -133,7 +133,7 @@ def main():
 
     # Parse arguments
     args = utilities.parseConnectionArguments()
-    
+
     # Create connection to the device and get the router
     with utilities.DeviceConnection.createTcpConnection(args) as router:
 

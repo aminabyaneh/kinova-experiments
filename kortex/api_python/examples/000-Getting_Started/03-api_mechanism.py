@@ -25,7 +25,7 @@ from kortex_api.autogen.messages import DeviceConfig_pb2, Session_pb2, Base_pb2,
 def example_call_rpc_using_options(base):
 
     # The RouterClientSendOptions exist to modify the default behavior
-    # of the router. The router default value are 
+    # of the router. The router default value are
     #     andForget = False     (not implemented yet)
     #     delay_ms = 0          (not implemented yet)
     #     timeout_ms = 10000
@@ -35,17 +35,19 @@ def example_call_rpc_using_options(base):
     router_options = RouterClientSendOptions()
     router_options.timeout_ms = 5000 # 5 seconds
 
-    
+
     # The same function call without the options=router_options is valid and will do the same
     # using router's default options
-    
+
     try:
         requested_action_type = Base_pb2.RequestedActionType()
-        # requested_action_type.action_type = Base_pb2.REACH_JOINT_ANGLES
+        requested_action_type.action_type = Base_pb2.REACH_POSE
         all_actions = base.ReadAllActions(requested_action_type, options=router_options)
     except Exception as e:
         print(e)
     else:
+        if not len(all_actions.action_list): return
+
         print ("List of all actions in the arm:")
         for action in all_actions.action_list:
             print("============================================")
@@ -66,7 +68,7 @@ def main():
 
     # Parse arguments
     args = utilities.parseConnectionArguments()
-    
+
     # Create connection to the device and get the router
     with utilities.DeviceConnection.createTcpConnection(args) as router:
 
