@@ -38,6 +38,21 @@ from kortex_api.Exceptions.KException import KException
 
 
 #########################################
+############ Gripper Movement ###########
+#########################################
+def change_gripper(base, position: float = 0.1):
+    # create the GripperCommand we will send
+    gripper_command = Base_pb2.GripperCommand()
+    finger = gripper_command.gripper.finger.add()
+
+    # close the gripper with position increments
+    gripper_command.mode = Base_pb2.GRIPPER_POSITION
+    finger.finger_identifier = 1
+    finger.value = position
+    base.SendGripperCommand(gripper_command)
+    time.sleep(1)
+
+#########################################
 ############ Basic Movement #############
 #########################################
 def move_to_home(base):
@@ -46,7 +61,7 @@ def move_to_home(base):
     base_servo_mode.servoing_mode = Base_pb2.SINGLE_LEVEL_SERVOING
     base.SetServoingMode(base_servo_mode)
 
-    # Move arm to ready position
+    # move arm to ready position
     print("Moving the arm to a safe position")
     action_type = Base_pb2.RequestedActionType()
     action_type.action_type = Base_pb2.REACH_JOINT_ANGLES
@@ -208,7 +223,7 @@ def endeffector_twist_command(base, duration: float = 1, endeffector_twists_dict
     command = Base_pb2.TwistCommand()
 
     command.reference_frame = Base_pb2.CARTESIAN_REFERENCE_FRAME_TOOL
-    command.duration = duration
+    command.duration = 0
 
     twist = command.twist
     twist.linear_x = endeffector_twists_dict["linear_x"]
@@ -219,6 +234,8 @@ def endeffector_twist_command(base, duration: float = 1, endeffector_twists_dict
     twist.angular_z = endeffector_twists_dict["angular_z"]
 
     finished = base.SendTwistCommand(command)
+
+    time.sleep(duration)
     return finished
 
 #########################################
@@ -401,8 +418,9 @@ def handle_exception_msg(ex):
     print("Caught expected error: {}".format(ex))
 
 def check(notification, e):
-    if notification.action_event == Base_pb2.ACTION_END \
-    or notification.action_event == Base_pb2.ACTION_ABORT:
+    if notification.action_event == Base_pb2.ACTION_END:
+        e.set()
+    if notification.action_event == Base_pb2.ACTION_ABORT:
         e.set()
 
 def parse_connection_args(parser = argparse.ArgumentParser()):
@@ -536,6 +554,7 @@ def main():
             endeffector_twist_command(base)
 
         if args.action_type == "Inverse_Kinematics":
+
             inverse_kinematics(base)
 
         if args.action_type == "Endeffector_Position":
@@ -567,6 +586,10 @@ def main():
 
         if args.action_type == "Feedback":
             print(endeffector_twist_feedback(base_cyclic))
+            print(endeffector_pose_feedback(base_cyclic))
+
+        if args.action_type == "Gripper":
+            change_gripper(base, 0.5)
 
 if __name__ == '__main__':
     main()
