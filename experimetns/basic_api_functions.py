@@ -50,7 +50,7 @@ def change_gripper(base, position: float = 0.1):
     finger.finger_identifier = 1
     finger.value = position
     base.SendGripperCommand(gripper_command)
-    time.sleep(1)
+    time.sleep(2)
 
 #########################################
 ############ Basic Movement #############
@@ -238,6 +238,91 @@ def endeffector_twist_command(base, duration: float = 1, endeffector_twists_dict
     time.sleep(duration)
     return finished
 
+
+#########################################
+############## Trajectory ###############
+#########################################
+def populate_endeffector_pose(pose):
+
+    waypoint = Base_pb2.CartesianWaypoint()
+    waypoint.pose.x = pose["linear_x"]
+    waypoint.pose.y = pose["linear_y"]
+    waypoint.pose.z = pose["linear_z"]
+    waypoint.blending_radius = 0.005
+    waypoint.pose.theta_x = pose["angular_x"]
+    waypoint.pose.theta_y = pose["angular_y"]
+    waypoint.pose.theta_z = pose["angular_z"]
+    waypoint.reference_frame = Base_pb2.CARTESIAN_REFERENCE_FRAME_BASE
+
+    return waypoint
+
+def execute_taskspace_trajectory(base, task_space_trajectory):
+    waypoints = Base_pb2.WaypointList()
+    waypoints.duration = 0.0
+    waypoints.use_optimal_blending = True
+
+    for idx, pose in enumerate(task_space_trajectory):
+        waypoint = waypoints.waypoints.add()
+        waypoint.name = "waypoint_" + str(idx)
+        waypoint_cartesian = populate_endeffector_pose(pose)
+        if idx == len(task_space_trajectory) - 1:
+            waypoint_cartesian.blending_radius = 0.0
+        waypoint.cartesian_waypoint.CopyFrom(waypoint_cartesian)
+
+    result = base.ValidateWaypointList(waypoints)
+    if (len(result.trajectory_error_report.trajectory_error_elements) == 0):
+        print(f'Executing trajectory of {len(task_space_trajectory)} points')
+        e = threading.Event()
+        notification_handle = base.OnNotificationActionTopic(partial(check, e=e),
+                                                            Base_pb2.NotificationOptions())
+
+        base.ExecuteWaypointTrajectory(waypoints)
+        finished = e.wait(30000)
+        base.Unsubscribe(notification_handle)
+        return finished
+
+    else:
+        print('Error found in trajectory')
+        print(result.trajectory_error_report)
+        return False
+
+def populate_angular_position(joint_position, duration):
+    waypoint = Base_pb2.AngularWaypoint()
+    waypoint.angles.extend(joint_position)
+    waypoint.duration = duration * 5.0
+    return waypoint
+
+
+def execute_jointspace_trajectory(base, joint_space_trajectory):
+    waypoints = Base_pb2.WaypointList()
+    waypoints.duration = 0.0
+    waypoints.use_optimal_blending = False
+
+    for idx, joint_position in enumerate(joint_space_trajectory):
+        waypoint = waypoints.waypoints.add()
+        waypoint.name = "waypoint_" + str(idx)
+        durationFactor = 1
+        waypoint.angular_waypoint.CopyFrom(populate_angular_position(joint_position, durationFactor))
+
+    result = base.ValidateWaypointList(waypoints)
+    if len(result.trajectory_error_report.trajectory_error_elements) == 0:
+        print(f'Executing trajectory of {len(joint_space_trajectory)} points')
+        e = threading.Event()
+        notification_handle = base.OnNotificationActionTopic(
+            partial(check, e=e),
+            Base_pb2.NotificationOptions()
+        )
+        base.ExecuteWaypointTrajectory(waypoints)
+
+        finished = e.wait(30000)
+        base.Unsubscribe(notification_handle)
+        return finished
+    else:
+        print("Error found in trajectory")
+        print(result.trajectory_error_report)
+        return finished
+
+
 #########################################
 ############ Router Client ##############
 #########################################
@@ -279,7 +364,7 @@ def rpc_call(base: BaseClient):
 #########################################
 ############## Kinematics ###############
 #########################################
-def forward_kinematics(base: BaseClient):
+def forward_kinematics(base: BaseClient, input_joint_angles):
     """ Compute forward kinematics.
 
     Find the forward kinematics using the current joint angles. It is of course possible
@@ -291,31 +376,13 @@ def forward_kinematics(base: BaseClient):
     Returns:
         bool: Whether the calculations were successful.
     """
-    # get current joint angles
-    try:
-        input_joint_angles = base.GetMeasuredJointAngles()
-    except KServerException as ex:
-        handle_exception_msg(ex)
-        return False
-
-    print(f'#### Joint angles ####')
-    for joint_angle in input_joint_angles.joint_angles:
-        print(f'Joint {joint_angle.joint_identifier}: {joint_angle.value:.4f}')
-    print('')
 
     # forward kinematics
-    try:
-        pose = base.ComputeForwardKinematics(input_joint_angles)
-    except KServerException as ex:
-        handle_exception_msg(ex)
-        return False
-
-    print(f'Calculated pose (x, y, z): ({pose.x}, {pose.y}, {pose.z})')
-    print(f'Calculated theta (t_x, t_y, t_z)  : ({pose.theta_x}, {pose.theta_y}, {pose.theta_z})')
-    return True
+    pose = base.ComputeForwardKinematics(input_joint_angles)
+    return pose
 
 
-def inverse_kinematics(base):
+def inverse_kinematics(base, pose, init_angles_guess={0:0, 1:0, 2:0, 3:0, 4:0, 5:0}):
     """
     Find the inverse kinematics for a given pose. Quite the same as forward kinematics,
     but in the other direction.
@@ -327,40 +394,24 @@ def inverse_kinematics(base):
         bool: Whether the calculations were successful.
     """
 
-    # get robot's pose by forward kinematics
-    try:
-        input_joint_angles = base.GetMeasuredJointAngles()
-        pose = base.ComputeForwardKinematics(input_joint_angles)
-    except KServerException as ex:
-        handle_exception_msg(ex)
-        return False
-
     # object containing cartesian coordinates and angle guess
     input_IkData = Base_pb2.IKData()
 
     # fill the IKData object with the cartesian coordinates that need to be converted
-    input_IkData.cartesian_pose.x = pose.x
-    input_IkData.cartesian_pose.y = pose.y
-    input_IkData.cartesian_pose.z = pose.z
-    input_IkData.cartesian_pose.theta_x = pose.theta_x
-    input_IkData.cartesian_pose.theta_y = pose.theta_y
-    input_IkData.cartesian_pose.theta_z = pose.theta_z
+    input_IkData.cartesian_pose.x = pose["linear_x"]
+    input_IkData.cartesian_pose.y = pose["linear_y"]
+    input_IkData.cartesian_pose.z = pose["linear_z"]
+    input_IkData.cartesian_pose.theta_x = pose["angular_x"]
+    input_IkData.cartesian_pose.theta_y = pose["angular_y"]
+    input_IkData.cartesian_pose.theta_z = pose["angular_z"]
 
     # Fill the IKData Object with the guessed joint angles
-    for joint_angle in input_joint_angles.joint_angles :
+    for joint_id in init_angles_guess:
         jAngle = input_IkData.guess.joint_angles.add()
-        # '- 1' to generate an actual "guess" for current joint angles
-        jAngle.value = joint_angle.value - 1
+        jAngle.value = init_angles_guess[joint_id]
 
-    # computing inverse kinematics
-    try:
-        computed_joint_angles = base.ComputeInverseKinematics(input_IkData)
-    except KServerException as ex:
-        handle_exception_msg(ex)
-        return False
-
-    print(f'Computed joint angles: {computed_joint_angles.joint_angles}')
-    return True
+    computed_joint_angles = base.ComputeInverseKinematics(input_IkData)
+    return computed_joint_angles
 
 
 #########################################
@@ -547,15 +598,18 @@ def main():
         if args.action_type == "Home":
             move_to_home(base)
 
-        if args.action_type == "Forward_Kinematics":
-            forward_kinematics(base)
-
         if args.action_type == "Endeffector_Twist":
             endeffector_twist_command(base)
 
         if args.action_type == "Inverse_Kinematics":
+            pose = {'linear_x': 0.23,
+                    'linear_y': 0.33,
+                    'linear_z': 0.34,
+                    'angular_x': 90.65,
+                    'angular_y': -0.99,
+                    'angular_z': 100.96}
 
-            inverse_kinematics(base)
+            print(inverse_kinematics(base, pose))
 
         if args.action_type == "Endeffector_Position":
             pose = {'linear_x': 0.23,
