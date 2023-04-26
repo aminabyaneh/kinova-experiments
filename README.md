@@ -7,6 +7,8 @@ The simplest way to install MoveIt is from pre-built binaries (Debian):
 sudo apt install ros-<distro>-moveit
 ```
 
+E.g., noetic distro 
+
 You can also add it to catkin workspace and build it yourself (the link might have changed).
 
 ```

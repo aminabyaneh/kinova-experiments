@@ -15,6 +15,7 @@
 import time
 import argparse
 import threading
+import kortex_api
 
 from functools import partial
 from typing import Dict
@@ -31,6 +32,7 @@ from kortex_api.autogen.messages import DeviceConfig_pb2, Session_pb2, Base_pb2,
 from kortex_api.autogen.client_stubs.DeviceConfigClientRpc import DeviceConfigClient
 from kortex_api.autogen.client_stubs.BaseClientRpc import BaseClient
 from kortex_api.autogen.client_stubs.BaseCyclicClientRpc import BaseCyclicClient
+from kortex_api.autogen.client_stubs.ControlConfigClientRpc import ControlConfigClient
 
 
 from kortex_api.Exceptions.KServerException import KServerException
@@ -55,7 +57,7 @@ def change_gripper(base, position: float = 0.1):
 #########################################
 ############ Basic Movement #############
 #########################################
-def move_to_home(base):
+def execute_defined_action(base, action_name: str = "Home"):
     # activate single level servoing mode
     base_servo_mode = Base_pb2.ServoingModeInformation()
     base_servo_mode.servoing_mode = Base_pb2.SINGLE_LEVEL_SERVOING
@@ -68,7 +70,7 @@ def move_to_home(base):
     action_list = base.ReadAllActions(action_type)
     action_handle = None
     for action in action_list.action_list:
-        if action.name == "Home":
+        if action.name == action_name:
             action_handle = action.handle
 
     if action_handle == None:
@@ -596,7 +598,7 @@ def main():
         base_cyclic = BaseCyclicClient(router)
 
         if args.action_type == "Home":
-            move_to_home(base)
+            execute_defined_action(base)
 
         if args.action_type == "Endeffector_Twist":
             endeffector_twist_command(base)
@@ -644,6 +646,12 @@ def main():
 
         if args.action_type == "Gripper":
             change_gripper(base, 0.5)
+
+        if args.action_type == "Release_Joints":
+            # Not available for Gen3Lite :(
+            admittance = Base_pb2.Admittance()
+            admittance.admittance_mode = Base_pb2.DISABLED
+            base.SetAdmittance(admittance)
 
 if __name__ == '__main__':
     main()

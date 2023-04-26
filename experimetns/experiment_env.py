@@ -25,10 +25,17 @@ class RealWorldTrajectory:
         # TODO: Could potentially write a parser for coordinates.
         self.start = {'linear_x': 0.006,
                       'linear_y': -0.414,
-                      'linear_z': 0.137,
+                      'linear_z': 0.127,
                       'angular_x': -2.338,
                       'angular_y': 177.674,
                       'angular_z': 177.56}
+
+        self.middle = {'linear_x': 0.306,
+                       'linear_y': 0.007,
+                       'linear_z': 0.215,
+                       'angular_x': 177.643,
+                       'angular_y': 2.36,
+                       'angular_z': 144.643}
 
         self.goal = {'linear_x': 0.306,
                      'linear_y': 0.327,
@@ -169,7 +176,7 @@ class KinovaDSExperiments:
             joints_velocity_command(self.__base, duration=data["dt"],
                                     joint_velocity_dict=data)
 
-    def grip(self, press: float = 0.7):
+    def grip(self, press: float = 0.6):
         """ Close the gripper.
         """
         change_gripper(self.__base, press)
@@ -178,6 +185,18 @@ class KinovaDSExperiments:
         """ Release the gripper.
         """
         change_gripper(self.__base, 0.0)
+
+    def release_joints(self, secs = 10):
+        """Releases the joints so the robot can be subject to purturbation
+        without going into fault mode.
+
+        Args:
+            secs (int, optional): Number of seconds to let go. Defaults to 10.
+        """
+
+        self.pause(secs=secs)
+        self.__base.ClearFaults()
+        self.pause(secs=5)
 
     def pause(self, secs=2):
         """ Pause for a determined time. Only a wrapper for sleep at this point.
@@ -190,32 +209,12 @@ class KinovaDSExperiments:
     def home(self):
         """ Move to a predefined home position.
         """
-        # activate single level servoing mode
-        base_servo_mode = Base_pb2.ServoingModeInformation()
-        base_servo_mode.servoing_mode = Base_pb2.SINGLE_LEVEL_SERVOING
-        self.__base.SetServoingMode(base_servo_mode)
+        execute_defined_action(self.__base, "Home")
 
-        # move arm to ready position
-        print("Moving the arm to a safe position")
-        action_type = Base_pb2.RequestedActionType()
-        action_type.action_type = Base_pb2.REACH_JOINT_ANGLES
-        action_list = self.__base.ReadAllActions(action_type)
-        action_handle = None
-        for action in action_list.action_list:
-            if action.name == "Home":
-                action_handle = action.handle
-
-        e = threading.Event()
-        notification_handle = self.__base.OnNotificationActionTopic(
-            partial(check, e=e),
-            Base_pb2.NotificationOptions()
-        )
-
-        self.__base.ExecuteActionFromReference(action_handle)
-
-        # leave time to action to complete
-        e.wait(15000)
-        self.__base.Unsubscribe(notification_handle)
+    def retract(self):
+        """ Move to a predefined home position.
+        """
+        execute_defined_action(self.__base, "Retract")
 
     def get_endeffector_feedback(self):
         """Return a dict with joints pose and twists feedback.
@@ -398,7 +397,6 @@ def baseline_w_motion():
         target = {'linear_x': 0.381, 'linear_y': 0.25 * math.sqrt(2 - ((10*(0.381 - 0.24)) ** 2)), 'linear_z': zb, 'angular_x': tx, 'angular_y': ty, 'angular_z': tz}
         kde.execute_trajectory(task_space_trajectory)
 
-
 def baseline_c_motion():
     start_point = {'linear_x': 0.100,
                     'linear_y': 0.00,
@@ -441,7 +439,7 @@ def baseline_c_motion():
         kde.execute_trajectory(task_space_trajectory)
 
 
-def sample_pick_and_place():
+def simple_pick_and_place():
     with KinovaDSExperiments() as kde:
         traj = kde.get_trajectory()
         kde.set_control_mode(ControlModes.END_EFFECTOR_POSE)
@@ -458,7 +456,31 @@ def sample_pick_and_place():
 
         # release
         kde.release()
-        kde.home()
+        kde.retract()
+
+
+def purturbed_pick_and_place():
+    with KinovaDSExperiments() as kde:
+        traj = kde.get_trajectory()
+        kde.set_control_mode(ControlModes.END_EFFECTOR_POSE)
+
+        # release the gripper and move to the starting point
+        kde.release()
+        kde.move(traj.start)
+        kde.pause()
+
+        # grip and move to purturbation point
+        kde.grip()
+        kde.move(traj.middle)
+        kde.release_joints(secs=10)
+
+        # continue to the goal
+        kde.move(traj.goal)
+        kde.pause()
+
+        # release
+        kde.release()
+        kde.retract()
 
 if __name__ == '__main__':
-    baseline_w_motion()
+    purturbed_pick_and_place()
