@@ -9,7 +9,9 @@ import pandas as pd
 import pickle
 
 from enum import Enum
-from basic_api_functions import *
+from kortex_api_wrap import *
+save_data: bool = False
+
 
 class ControlModes(Enum):
     JOINT_POSITION = 0
@@ -17,29 +19,30 @@ class ControlModes(Enum):
     END_EFFECTOR_POSE = 2
     END_EFFECTOR_TWIST = 3
 
+
 class RealWorldTrajectory:
     """ A sample real-world trajectory for experiments.
     """
 
-    def __init__(self):
+    def __init__(self, trajectory_name: str = "default"):
         # TODO: Could potentially write a parser for coordinates.
-        self.start = {'linear_x': 0.006,
+        self.start = {'linear_x': 0.206,
                       'linear_y': -0.414,
-                      'linear_z': 0.127,
+                      'linear_z': 0.117,
                       'angular_x': -2.338,
                       'angular_y': 177.674,
                       'angular_z': 177.56}
 
-        self.middle = {'linear_x': 0.306,
-                       'linear_y': 0.007,
+        self.middle = {'linear_x': 0.206,
+                       'linear_y': -0.207,
                        'linear_z': 0.215,
                        'angular_x': 177.643,
                        'angular_y': 2.36,
                        'angular_z': 144.643}
 
         self.goal = {'linear_x': 0.306,
-                     'linear_y': 0.327,
-                     'linear_z': 0.215,
+                     'linear_y': 0.247,
+                     'linear_z': 0.415,
                      'angular_x': 177.643,
                      'angular_y': 2.36,
                      'angular_z': 144.643}
@@ -48,6 +51,7 @@ class RealWorldTrajectory:
         self.vel_dataset = pd.DataFrame(columns=['linear_x', 'linear_y', 'linear_z', 'angular_x', 'angular_y', 'angular_z'])
 
         self.capture: bool = False
+        self.trajectory_name: str = trajectory_name
 
     def capture_data(self, basecyclic: BaseCyclicClient, delta_t: float = 0.1):
         """Log feedback data for a base cyclic client.
@@ -88,7 +92,7 @@ class RealWorldTrajectory:
             dir (str, optional): Path to dems folder contatining the pos and vels. Defaults to os.getcwd().
         """
 
-        save_dir = os.path.join(dir, 'dems')
+        save_dir = os.path.join(dir, 'dems', self.trajectory_name)
         os.makedirs(save_dir, exist_ok=True)
         self.pos_dataset.to_csv(path_or_buf=os.path.join(save_dir, 'pos.csv'))
         self.vel_dataset.to_csv(path_or_buf=os.path.join(save_dir, 'vel.csv'))
@@ -100,7 +104,7 @@ class RealWorldTrajectory:
             dir (str, optional): Directory of dems folder contatining pos and velocity data. Defaults to os.getcwd().
         """
 
-        load_dir = os.path.join(dir, 'dems')
+        load_dir = os.path.join(dir, 'dems', self.trajectory_name)
         self.pos_dataset = pd.read_csv(os.path.join(load_dir, 'pos.csv'), index_col=0)
         self.vel_dataset = pd.read_csv(os.path.join(load_dir, 'vel.csv'), index_col=0)
 
@@ -108,8 +112,7 @@ class RealWorldTrajectory:
 class KinovaDSExperiments:
     def __init__(self, mode=ControlModes.END_EFFECTOR_POSE, device_ip: str = '192.168.1.10',
                  device_port: int = 10000, username: str = 'admin', password: str = 'admin',
-                 session_inactivity_timeout: int = 60000, connection_inactivity_timeout: int = 20000,
-                 capture_mode: bool = False, home: bool = True):
+                 session_inactivity_timeout: int = 60000, connection_inactivity_timeout: int = 20000, capture_mode: bool = save_data, home: bool = True):
 
         # build the transport layer
         self.__transport = TCPTransport() if device_port == DeviceConnection.TCP_PORT else UDPTransport()
@@ -176,27 +179,26 @@ class KinovaDSExperiments:
             joints_velocity_command(self.__base, duration=data["dt"],
                                     joint_velocity_dict=data)
 
-    def grip(self, press: float = 0.6):
+    def grip(self, press: float = 0.7):
         """ Close the gripper.
         """
         change_gripper(self.__base, press)
 
-    def release(self):
-        """ Release the gripper.
+    def reboot(self):
+        """ Reboot the arm.
         """
-        change_gripper(self.__base, 0.0)
+        self.__base.Reboot()
 
     def release_joints(self, secs = 10):
-        """Releases the joints so the robot can be subject to purturbation
+        """Releases the joints so the robot can be subject to perturbation
         without going into fault mode.
 
         Args:
             secs (int, optional): Number of seconds to let go. Defaults to 10.
         """
-
-        self.pause(secs=secs)
+        self.pause(8)
         self.__base.ClearFaults()
-        self.pause(secs=5)
+        self.pause(2)
 
     def pause(self, secs=2):
         """ Pause for a determined time. Only a wrapper for sleep at this point.
@@ -215,6 +217,11 @@ class KinovaDSExperiments:
         """ Move to a predefined home position.
         """
         execute_defined_action(self.__base, "Retract")
+
+    def zero(self):
+        """ Move to a predefined home position.
+        """
+        execute_defined_action(self.__base, "Zero")
 
     def get_endeffector_feedback(self):
         """Return a dict with joints pose and twists feedback.
@@ -300,187 +307,3 @@ class KinovaDSExperiments:
         self.__transport.disconnect()
 
 
-def reproduce_trajectory():
-    with KinovaDSExperiments() as kde:
-        traj = kde.get_trajectory()
-        traj.load_data()
-
-        dt = 0.1
-        kde.set_control_mode(ControlModes.END_EFFECTOR_TWIST)
-
-        for index, row in traj.vel_dataset.iterrows():
-            twists_dict = dict(row)
-            twists_dict["dt"] = dt
-            kde.move(twists_dict, feedback=False)
-            print(f'Sending {index} twist command')
-        pass
-
-
-def baseline_sine_motion():
-    start_point = {'linear_x': 0.117,
-                    'linear_y': 0.00,
-                    'linear_z': 0.255,
-                    'angular_x': 1.393,
-                    'angular_y': 178.674,
-                    'angular_z': 96.029}
-
-    with KinovaDSExperiments() as kde:
-        kde.pause(secs=5)
-        kde.grip(press=0.8)
-
-        kde.set_control_mode(ControlModes.JOINT_POSITION)
-
-        joint_position_start = kde.inverse_kinematics(start_point)
-        print(f'Moving to ({start_point["linear_x"]:.3f}, {start_point["linear_y"]:.3f}, {start_point["linear_z"]:.3f})')
-        kde.move(joint_position_start)
-
-        pose_fb = kde.get_endeffector_feedback()["pose"]
-        xb, yb, zb = pose_fb['linear_x'], pose_fb['linear_y'], pose_fb['linear_z']
-        tx, ty, tz = pose_fb['angular_x'], pose_fb['angular_y'], pose_fb['angular_z']
-
-        # generate a trajectory
-        task_space_trajectory: List[Tuple] = []
-        x = xb
-        while x < 0.435:
-            # calculate new end-effector positions
-            x_n = x + 0.005
-            y_n = yb + 0.15 * math.sin(50 * (x_n - xb))
-
-            # move to calculated position
-            print(f'Adding ({x_n:.3f}, {y_n:.3f}, {zb:.3f})')
-            target = {'linear_x': x_n, 'linear_y': y_n, 'linear_z': zb, 'angular_x': tx, 'angular_y': ty, 'angular_z': tz}
-            task_space_trajectory.append(target)
-
-            # feedback simulation
-            x = x_n
-
-        kde.execute_trajectory(task_space_trajectory)
-
-def baseline_w_motion():
-    start_point = {'linear_x': 0.100,
-                    'linear_y': 0.00,
-                    'linear_z': 0.255,
-                    'angular_x': 1.393,
-                    'angular_y': 178.674,
-                    'angular_z': 96.029}
-
-    with KinovaDSExperiments() as kde:
-        kde.pause(secs=5)
-        kde.grip(press=0.8)
-
-        kde.set_control_mode(ControlModes.JOINT_POSITION)
-
-        joint_position_start = kde.inverse_kinematics(start_point)
-        print(f'Moving to ({start_point["linear_x"]:.3f}, {start_point["linear_y"]:.3f}, {start_point["linear_z"]:.3f})')
-        kde.move(joint_position_start)
-
-        pose_fb = kde.get_endeffector_feedback()["pose"]
-        xb, yb, zb = pose_fb['linear_x'], pose_fb['linear_y'], pose_fb['linear_z']
-        tx, ty, tz = pose_fb['angular_x'], pose_fb['angular_y'], pose_fb['angular_z']
-
-        # generate a trajectory
-        task_space_trajectory: List[Tuple] = []
-        x = xb
-        for _ in range(56):
-            # calculate new end-effector positions
-            x_n = x + 0.005
-            y_n = yb + 0.1 * math.sqrt(abs(3 - ((20*(x_n - 0.24)) ** 2)))
-
-            # move to calculated position
-            print(f'Adding ({x_n:.3f}, {y_n:.3f}, {zb:.3f})')
-            target = {'linear_x': x_n, 'linear_y': y_n, 'linear_z': zb, 'angular_x': tx, 'angular_y': ty, 'angular_z': tz}
-            task_space_trajectory.append(target)
-
-            # feedback simulation
-            x = x_n
-
-        target = {'linear_x': 0.381, 'linear_y': 0.25 * math.sqrt(2 - ((10*(0.381 - 0.24)) ** 2)), 'linear_z': zb, 'angular_x': tx, 'angular_y': ty, 'angular_z': tz}
-        kde.execute_trajectory(task_space_trajectory)
-
-def baseline_c_motion():
-    start_point = {'linear_x': 0.100,
-                    'linear_y': 0.00,
-                    'linear_z': 0.255,
-                    'angular_x': 1.393,
-                    'angular_y': 178.674,
-                    'angular_z': 96.029}
-
-    with KinovaDSExperiments() as kde:
-        kde.pause(secs=5)
-        kde.grip(press=0.8)
-
-        kde.set_control_mode(ControlModes.JOINT_POSITION)
-
-        joint_position_start = kde.inverse_kinematics(start_point)
-        print(f'Moving to ({start_point["linear_x"]:.3f}, {start_point["linear_y"]:.3f}, {start_point["linear_z"]:.3f})')
-        kde.move(joint_position_start)
-
-        pose_fb = kde.get_endeffector_feedback()["pose"]
-        xb, yb, zb = pose_fb['linear_x'], pose_fb['linear_y'], pose_fb['linear_z']
-        tx, ty, tz = pose_fb['angular_x'], pose_fb['angular_y'], pose_fb['angular_z']
-
-        # generate a trajectory
-        task_space_trajectory: List[Tuple] = []
-        x = xb
-        for _ in range(56):
-            # calculate new end-effector positions
-            x_n = x + 0.005
-            y_n = yb + 0.25 * math.sqrt(2 - ((10*(x_n - 0.24)) ** 2))
-
-            # move to calculated position
-            print(f'Adding ({x_n:.3f}, {y_n:.3f}, {zb:.3f})')
-            target = {'linear_x': x_n, 'linear_y': y_n, 'linear_z': zb, 'angular_x': tx, 'angular_y': ty, 'angular_z': tz}
-            task_space_trajectory.append(target)
-
-            # feedback simulation
-            x = x_n
-
-        target = {'linear_x': 0.381, 'linear_y': 0.25 * math.sqrt(2 - ((10*(0.381 - 0.24)) ** 2)), 'linear_z': zb, 'angular_x': tx, 'angular_y': ty, 'angular_z': tz}
-        kde.execute_trajectory(task_space_trajectory)
-
-
-def simple_pick_and_place():
-    with KinovaDSExperiments() as kde:
-        traj = kde.get_trajectory()
-        kde.set_control_mode(ControlModes.END_EFFECTOR_POSE)
-
-        # release the gripper and move to the starting point
-        kde.release()
-        kde.move(traj.start)
-        kde.pause()
-
-        # grip and move to the goal
-        kde.grip()
-        kde.move(traj.goal)
-        kde.pause()
-
-        # release
-        kde.release()
-        kde.retract()
-
-
-def purturbed_pick_and_place():
-    with KinovaDSExperiments() as kde:
-        traj = kde.get_trajectory()
-        kde.set_control_mode(ControlModes.END_EFFECTOR_POSE)
-
-        # release the gripper and move to the starting point
-        kde.release()
-        kde.move(traj.start)
-        kde.pause()
-
-        # grip and move to purturbation point
-        kde.grip()
-        kde.move(traj.middle)
-        kde.release_joints(secs=10)
-
-        # continue to the goal
-        kde.move(traj.goal)
-        kde.pause()
-
-        # release
-        kde.release()
-        kde.retract()
-
-if __name__ == '__main__':
-    purturbed_pick_and_place()

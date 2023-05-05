@@ -1,24 +1,11 @@
 #! /usr/bin/env python3
 
-###
-# KINOVA (R) KORTEX (TM)
-#
-# Copyright (c) 2018 Kinova inc. All rights reserved.
-#
-# This software may be modified and distributed
-# under the under the terms of the BSD 3-Clause license.
-#
-# Refer to the LICENSE file for details.
-#
-###
-
 import time
 import argparse
 import threading
-import kortex_api
 
 from functools import partial
-from typing import Dict
+from typing import Dict, List
 from google.protobuf import json_format
 
 from kortex_api.TCPTransport import TCPTransport
@@ -32,7 +19,7 @@ from kortex_api.autogen.messages import DeviceConfig_pb2, Session_pb2, Base_pb2,
 from kortex_api.autogen.client_stubs.DeviceConfigClientRpc import DeviceConfigClient
 from kortex_api.autogen.client_stubs.BaseClientRpc import BaseClient
 from kortex_api.autogen.client_stubs.BaseCyclicClientRpc import BaseCyclicClient
-from kortex_api.autogen.client_stubs.ControlConfigClientRpc import ControlConfigClient
+from kortex_api.autogen.client_stubs.ControlConfigClientRpc import ControlConfigClient, ControlConfigPb
 
 
 from kortex_api.Exceptions.KServerException import KServerException
@@ -53,6 +40,7 @@ def change_gripper(base, position: float = 0.1):
     finger.value = position
     base.SendGripperCommand(gripper_command)
     time.sleep(2)
+
 
 #########################################
 ############ Basic Movement #############
@@ -126,7 +114,6 @@ def joints_position_feedback(cyclic_base) -> Dict[str, float]:
     feedback_dict = {joint_id: feedback.actuators[joint_id].position
         for joint_id in range(6)}
 
-
     return feedback_dict
 
 
@@ -151,7 +138,6 @@ def joints_torque_feedback(cyclic_base) -> Dict[str, float]:
 
 
 def endeffector_pose_command(base, endeffector_pose_dict: Dict[str, float]):
-    # activate single level servoing mode
     action = Base_pb2.Action()
     action.name = "End effector pose command"
     action.application_data = ""
@@ -362,6 +348,7 @@ def rpc_call(base: BaseClient):
             if (action.handle.permission & Common_pb2.UPDATE_PERMISSION): print("\t- {0}".format(Common_pb2.Permission.Name(Common_pb2.UPDATE_PERMISSION)))
             if (action.handle.permission & Common_pb2.DELETE_PERMISSION): print("\t- {0}".format(Common_pb2.Permission.Name(Common_pb2.DELETE_PERMISSION)))
             print("============================================")
+
 
 #########################################
 ############## Kinematics ###############
@@ -583,6 +570,7 @@ def create_cartesian_action(base_cyclic):
 
     return action
 
+
 #########################################
 ############# Main Entery ###############
 #########################################
@@ -613,13 +601,63 @@ def main():
 
             print(inverse_kinematics(base, pose))
 
+        if args.action_type == "Waypoint_Trajectory":
+            time.sleep(2)
+            traj: List = []
+
+            p2 = {'linear_x': 0.329,
+                    'linear_y': 0.250,
+                    'linear_z': 0.255,
+                    'angular_x': 1.3,
+                    'angular_y': 177.99,
+                    'angular_z': 96.96}
+
+            goal = {'linear_x': 0.432,
+                    'linear_y': -0.007,
+                    'linear_z': 0.255,
+                    'angular_x': 1.3,
+                    'angular_y': 177.99,
+                    'angular_z': 96.96}
+
+            middle = {'linear_x': 0.422,
+                    'linear_y': 0.139,
+                    'linear_z': 0.255,
+                    'angular_x': 1.3,
+                    'angular_y': 177.99,
+                    'angular_z': 96.96}
+
+            traj.append(p2)
+            traj.append(middle)
+            traj.append(goal)
+            execute_taskspace_trajectory(base, traj)
+
         if args.action_type == "Endeffector_Position":
-            pose = {'linear_x': 0.23,
-                    'linear_y': 0.33,
-                    'linear_z': 0.34,
-                    'angular_x': 90.65,
-                    'angular_y': -0.99,
-                    'angular_z': 100.96}
+            time.sleep(2)
+            goal = {'linear_x': 0.432,
+                    'linear_y': -0.006,
+                    'linear_z': 0.255,
+                    'angular_x': 1.3,
+                    'angular_y': 177.99,
+                    'angular_z': 96.96}
+            p1 = {'linear_x': 0.236,
+                    'linear_y': -0.271,
+                    'linear_z': 0.255,
+                    'angular_x': 1.3,
+                    'angular_y': 177.99,
+                    'angular_z': 96.96}
+            p2 = {'linear_x': 0.329,
+                    'linear_y': 0.250,
+                    'linear_z': 0.255,
+                    'angular_x': 1.3,
+                    'angular_y': 177.99,
+                    'angular_z': 96.96}
+            p3 = {'linear_x': 0.431,
+                'linear_y': -0.083,
+                'linear_z': 0.255,
+                'angular_x': 1.3,
+                'angular_y': 177.99,
+                'angular_z': 96.96}
+            pose = p2
             endeffector_pose_command(base, pose)
 
         if args.action_type == "Joint_Position":
