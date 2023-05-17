@@ -69,7 +69,7 @@ def main():
 
   traj_handler = MoveItHandle()
 
-  # move vertically for 0.1m
+  # Move vertically for 0.1m
   actual_pose = traj_handler.get_cartesian_pose()
   actual_pose.position.z -= 0.1
   traj_handler.reach_cartesian_pose(pose=actual_pose, tolerance=0.01, constraints=None)
