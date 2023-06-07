@@ -190,9 +190,9 @@ def main():
         baseline_pick_and_place(perturbed=args.simulate_perturbation)
 
     elif args.hand_writing:
-        if args.motion_shape == "Sine":
+        if args.motion_shape == "Prolonged_Sine":
             baseline_sine_motion(perturbed=args.simulate_perturbation)
-        elif args.motion_shape == "W":
+        elif args.motion_shape == "Root_Parabola":
             baseline_w_motion(perturbed=args.simulate_perturbation)
 
     else:
